@@ -11,29 +11,7 @@ We performed the planned computational analysis and drafter the first version of
 
 ## Directory structure
 
-We have following 4 directories in this project:
-
-
-+ data
-
-+ scripts
-
-+ figures
-
-+ GRN
-
-### data
-
-**data** contains all the input and output files and RData objects that are necessary for producing the results
-
-### scripts
-
-**scripts** contains all the script including *pre-processing & QC*, *differential expression analysis*, *pathway enrichment analysis*, and *gene regulatory network analysis*
-
-### figures
-
-**figures** contains all the figures generated for the manuscript
-
-### GRN
-
-**GRN** contains the JAR files required for running GRN algorithm as well as all the output files for different GRN analyses.
+- **scripts** contains all the script including *pre-processing & QC*, *differential expression analysis*, *pathway enrichment analysis*, and *gene regulatory network analysis*
+- **data** must contain input data; intermediate and output data files will be created in the directory by the scripts
+- **figures** will contain all the figures generated for the manuscript by the scripts; the precomputed figures are available from https://webdav-r3lab.uni.lu/public/data/sbpj-x776/figures/
+- **GRN** must contain the JAR files required for running GRN algorithm; there are also output files for different GRN analyses. You can download the .jar files and the generated output files from https://webdav-r3lab.uni.lu/public/data/sbpj-x776/GRN.zip
