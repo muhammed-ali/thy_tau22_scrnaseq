@@ -1359,11 +1359,7 @@ library(SingleCellExperiment)
 set.seed(1)
 options(width=160)
 
-
-setwd("/home/m.ali/Projects/UL/mice_snRNAseq_cortex/enrico_script")
-
-
-load("sctrans2.RData")
+load("~/data/sctrans2.RData")
 
 grub <- sctrans2
 str(grub@meta.data)
