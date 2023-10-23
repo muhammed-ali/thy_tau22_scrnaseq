@@ -1343,3 +1343,182 @@ sapply(gen_degs, function(x) length(which(x$DEG.type=="gender-dimorphic")))
                         1
 
 # most gender-dimorphic changes also in oligodendrocyte precursor cells
+
+
+###############################
+## Sex*Genotype interaction DEA
+###############################
+
+
+library(Seurat)
+library(edgeR)
+library(limma)
+library(scran)
+library(readxl)
+library(SingleCellExperiment)
+set.seed(1)
+options(width=160)
+
+
+setwd("/home/m.ali/Projects/UL/mice_snRNAseq_cortex/enrico_script")
+
+
+load("sctrans2.RData")
+
+grub <- sctrans2
+str(grub@meta.data)
+grub$cond <- sub(" ", "_", grub$cond)
+grub$classint <- sub(" ", "_", grub$classint)
+grub$classint <- sub("Oligodendrocyte_precursor cell", "Oligodendrocyte_precursor_cell", grub$classint)
+grub$classint <- as.factor(grub$classint)
+grub$diag_cell_sex <- paste0(grub$cond, "_", grub$classint)
+length(unique(grub$diag_cell_sex)) # 40
+Idents(grub) <- "diag_cell_sex"
+table(Idents(grub))
+grub$sex <- sapply(strsplit(as.character(grub$stim), " "), '[', 2)
+grub$sex <- as.factor(grub$sex)
+table(grub$sex)
+#     F     M
+# 23586 20996
+grub$status <- sapply(strsplit(as.character(grub$cond), "_"), '[', 1)
+grub$status <- as.factor(grub$status)
+table(grub$status)
+#    TG    WT
+# 23398 21184
+
+DefaultAssay(grub) <- "RNA"
+grub$diag_cell_sex <- as.factor(grub$diag_cell_sex)
+str(grub@meta.data)
+
+design <- model.matrix(~0 + sex:diag_cell_sex, data = grub@meta.data) # https://support.bioconductor.org/p/92225/
+dim(design) # 44582    80
+
+
+colnames(design) <- gsub("diag_cell_sex", "", colnames(design))
+colnames(design) <- gsub("sex", "", colnames(design))
+colnames(design)
+
+dge <-  as.matrix(GetAssayData(grub, slot="counts"))
+dge <- DGEList(counts= dge)
+keep <- filterByExpr(dge, design)
+summary(keep)
+#    Mode   FALSE    TRUE
+# logical   19833      46
+dge <- dge[keep,keep.lib.sizes=FALSE]
+dge <- calcNormFactors(dge, method = "TMMwsp")
+
+#Run Voom and make contrasts
+vm <- voom(dge, design, plot = TRUE)
+# Coefficients not estimable: TG M WT F WT M
+# Partial NA coefficients for 46 probe(s)
+fit <- lmFit(vm, design)
+# Coefficients not estimable: M
+head(coef(fit))
+head(coef(fit))[grep("Neuron", head(coef(fit)))]
+
+colnames(design) <- gsub(":", "_", colnames(design))
+colnames(design) <- sub("Oligodendrocyte_precursor cell", "Oligodendrocyte_precursor_cell", colnames(design))
+# fit_copy <- fit
+fit <- fit_copy
+colnames(fit$design) <- gsub(":", "_", colnames(fit$design))
+colnames(fit$design) <- sub("Oligodendrocyte_precursor cell", "Oligodendrocyte_precursor_cell", colnames(fit$design))
+colnames(fit$coefficients) <- gsub(":", "_", colnames(fit$coefficients))
+colnames(fit$coefficients) <- sub("Oligodendrocyte_precursor cell", "Oligodendrocyte_precursor_cell", colnames(fit$coefficients))
+colnames(fit$stdev.unscaled) <- gsub(":", "_", colnames(fit$stdev.unscaled))
+colnames(fit$stdev.unscaled) <- sub("Oligodendrocyte_precursor cell", "Oligodendrocyte_precursor_cell", colnames(fit$stdev.unscaled))
+row.names(fit$cov.coefficients) <- gsub(":", "_", row.names(fit$cov.coefficients))
+row.names(fit$cov.coefficients) <- sub("Oligodendrocyte_precursor cell", "Oligodendrocyte_precursor_cell", row.names(fit$cov.coefficients))
+colnames(fit$cov.coefficients) <- gsub(":", "_", colnames(fit$cov.coefficients))
+colnames(fit$cov.coefficients) <- sub("Oligodendrocyte_precursor cell", "Oligodendrocyte_precursor_cell", colnames(fit$cov.coefficients))
+
+
+contrasts.matrix <- makeContrasts(AstM= (M_TG_M_Astrocyte - M_WT_M_Astrocyte) - (F_TG_F_Astrocyte - F_WT_F_Astrocyte),
+                                  AstF= (F_TG_F_Astrocyte - F_WT_F_Astrocyte) - (M_TG_M_Astrocyte - M_WT_M_Astrocyte),
+                                  EndM= (M_TG_M_Endothelial_cell - M_WT_M_Endothelial_cell) - (F_TG_F_Endothelial_cell - F_WT_F_Endothelial_cell),
+                                  EndF = (F_TG_F_Endothelial_cell - F_WT_F_Endothelial_cell) - (M_TG_M_Endothelial_cell - M_WT_M_Endothelial_cell),
+                                  MicM= (M_TG_M_Microglial_cell - M_WT_M_Microglial_cell) - (F_TG_F_Microglial_cell - F_WT_F_Microglial_cell),
+                                  MicF = (F_TG_F_Microglial_cell - F_WT_F_Microglial_cell) - (M_TG_M_Microglial_cell - M_WT_M_Microglial_cell),
+                                  OliM= (M_TG_M_Oligodendrocyte - M_WT_M_Oligodendrocyte) - (F_TG_F_Oligodendrocyte - F_WT_F_Oligodendrocyte),
+                                  OliF= (F_TG_F_Oligodendrocyte - F_WT_F_Oligodendrocyte) - (M_TG_M_Oligodendrocyte - M_WT_M_Oligodendrocyte),
+                                  OpcM= (M_TG_M_Oligodendrocyte_precursor_cell - M_WT_M_Oligodendrocyte_precursor_cell) - (F_TG_F_Oligodendrocyte_precursor_cell - F_WT_F_Oligodendrocyte_precursor_cell),
+                                  OpcF= (F_TG_F_Oligodendrocyte_precursor_cell - F_WT_F_Oligodendrocyte_precursor_cell) - (M_TG_M_Oligodendrocyte_precursor_cell - M_WT_M_Oligodendrocyte_precursor_cell),
+                                  EpeM= (M_TG_M_Ependymal_cell - M_WT_M_Ependymal_cell) - (F_TG_F_Ependymal_cell - F_WT_F_Ependymal_cell),
+                                  EpeF= (F_TG_F_Ependymal_cell - F_WT_F_Ependymal_cell) - (M_TG_M_Ependymal_cell - M_WT_M_Ependymal_cell),
+                                  MacM= (M_TG_M_Macrophage - M_WT_M_Macrophage) - (F_TG_F_Macrophage - F_WT_F_Macrophage),
+                                  MacF= (F_TG_F_Macrophage - F_WT_F_Macrophage) - (M_TG_M_Macrophage - M_WT_M_Macrophage),
+                                  NrbM= (M_TG_M_Neuroblast - M_WT_M_Neuroblast) - (F_TG_F_Neuroblast - F_WT_F_Neuroblast),
+                                  NrbF= (F_TG_F_Neuroblast - F_WT_F_Neuroblast) - (M_TG_M_Neuroblast - M_WT_M_Neuroblast),
+                                  MrlM= (M_TG_M_Mural_cell - M_WT_M_Mural_cell) - (F_TG_F_Mural_cell - F_WT_F_Mural_cell),
+                                  MrlF= (F_TG_F_Mural_cell - F_WT_F_Mural_cell) - (M_TG_M_Mural_cell - M_WT_M_Mural_cell),
+                                  NeuM= (M_TG_M_Neuron - M_WT_M_Neuron) - (F_TG_F_Neuron - F_WT_F_Neuron),
+                                  NeuF= (F_TG_F_Neuron - F_WT_F_Neuron) - (M_TG_M_Neuron - M_WT_M_Neuron),
+                                  levels = colnames(design))
+
+fit <- contrasts.fit(fit, contrasts = contrasts.matrix) 
+fit <- eBayes(fit)
+
+#Run loop to get results 
+delist_key <- c("AstM", "EndM",  "MicM", "MicM", "OliM" , "OpcM", "EpeM", "MacM", "NrbM", "MrlM", "NeuM", 
+               "AstF", "EndF", "MicF", "MicF", "OliF", "OpcF", "EpeF", "MacF", "NrbF", "MrlF", "NeuF")
+library(stringr)
+markers2 <- NULL
+markers3 <- NULL
+for(key in delist_key){
+  print(key)
+  key1 <- str_sub(key,-4,-2) #Cell_type
+  key2 <- gsub(key1,"",key) #Sex
+  markers <- topTable(fit, coef= key, sort.by = "logFC", number = Inf, adjust.method = "BH")  
+  markers$group <- key
+  markers$Sex <- key2
+  markers$cell_type <- key1
+  markers$gene <- rownames(markers)
+  markers$dir <- ifelse(markers$logFC < 0, "neg","pos")
+  colnames(markers)[c(1,4,5)] <- c("avg_logFC", "p_val", "p_val_adj")
+  markers2 <- rbind(markers2, markers) #no thresholds
+  markers <- subset(markers, p_val_adj < 0.05 & abs(avg_logFC) > 0.25)  
+  markers3 <- rbind(markers3, markers) 
+}
+table(markers3$group, markers3$dir)
+       neg pos
+  AstF   3  40
+  AstM  40   3
+  EndF   1  42
+  EndM  42   1
+  EpeF   1   2
+  EpeM   2   1
+  MacF   2  16
+  MacM  16   2
+  MicF  10  22
+  MicM  22  10
+  MrlF   5  14
+  MrlM  14   5
+  NeuF   4  27
+  NeuM  27   4
+  NrbF   0  16
+  NrbM  16   0
+  OliF   3  15
+  OliM  15   3
+  OpcF  29   6
+  OpcM   6  29
+
+male.markersOG <- markers2[markers2$Sex == "M",]
+dim(male.markersOG) # 506  11
+female.markersOG <- markers2[markers2$Sex != "M",]
+dim(female.markersOG) # 506  11
+write.csv(male.markersOG, file="ThyTau22_limma_DEGs_SexInteraction.csv") #lnf= limma no filter
+write.csv(female.markersOG, file="ThyTau22_limma_DEGs_SexInteraction_Female.csv") #lnf= limma no filter
+
+nrow(male.markersOG[male.markersOG$p_val_adj < 0.05,]) # 333
+write.csv(male.markersOG[male.markersOG$p_val_adj < 0.05,], file="ThyTau22_limma_DEGs_SexInteraction_Significant.csv") #lnf= limma no filter
+table(male.markersOG$group, male.markersOG$dir)
+       neg pos
+  AstM  42   3
+  EndM  43   3
+  EpeM   2   1
+  MacM  16   2
+  MicM  36  42
+  MrlM  14   5
+  NeuM  27   4
+  NrbM  16   0
+  OliM  38   4
+  OpcM   6  29
